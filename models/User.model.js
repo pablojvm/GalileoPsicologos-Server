@@ -1,28 +1,36 @@
-// ❗This is an example of a User Model. 
-// TODO: Please make sure you edit the User model to whatever makes sense in your project.
+import mongoose from "mongoose";
+import bcrypt from "bcrypt";
 
-const { Schema, model } = require("mongoose");
-
-const userSchema = new Schema(
-  {
-    email: {
-      type: String,
-      required: [true, 'Email is required.'],
-      unique: true,
-      lowercase: true,
-      trim: true
-    },
-    password: {
-      type: String,
-      required: [true, 'Password is required.']
-    }
+const userSchema = new mongoose.Schema({
+  name: { 
+    type: String, 
+    required: true },
+  email: { 
+    type: String, 
+    required: true, 
+    unique: true },
+  password: { 
+    type: String, 
+    required: true },
+  role: { 
+    type: String, 
+    enum: ["psychologist", "patient"], 
+    required: true },
+  specialist: {
+    type: String,
+    enum: ["Antonio", "Marta"],
+    required: function() { return this.role === "psychologist"; }
   },
-  {
-    // this second object adds extra properties: `createdAt` and `updatedAt`    
-    timestamps: true
-  }
-);
+  appointments: [{ 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: "Appointment" }]
+}, { timestamps: true });
 
-const User = model("User", userSchema);
+// Hash de contraseña
+userSchema.pre("save", async function(next){
+  if(!this.isModified("password")) return next();
+  this.password = await bcrypt.hash(this.password, 10);
+  next();
+});
 
-module.exports = User;
+export default mongoose.model("User", userSchema);

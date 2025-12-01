@@ -1,8 +1,12 @@
 const router = require("express").Router();
 
-// ℹ️ Test Route. Can be left and used for waking up the server if idle
-router.get("/", (req, res, next) => {
-  res.json("All good in here");
-});
+const appointmentRouter = require(("./appointment.routes"))
+router.use("/appointment", appointmentRouter)
+
+const serviceRouter = require(("./service.routes"))
+router.use("/service", serviceRouter)
+
+const userRoutes = require(("./user.routes"))
+router.use("/user", userRoutes)
 
 module.exports = router;
