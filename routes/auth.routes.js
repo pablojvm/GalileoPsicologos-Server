@@ -9,6 +9,7 @@ const verifyToken = require("../middlewares/auth.middlewares");
 
 const router = express.Router();
 
+// ================== GOOGLE STRATEGY ==================
 passport.use(
   new GoogleStrategy(
     {
@@ -25,9 +26,11 @@ passport.use(
           user = await User.create({
             email,
             username: profile.displayName,
-            password: null, 
+            password: null,
+            role: "patient", // por defecto
           });
         }
+
         done(null, user);
       } catch (err) {
         done(err, null);
@@ -42,8 +45,9 @@ passport.deserializeUser(async (id, done) => {
   done(null, user);
 });
 
+// ================== SIGNUP ==================
 router.post("/signup", async (req, res, next) => {
-  const { email, password, username, number } = req.body;
+  const { email, password, username } = req.body;
   if (!username || !email || !password) {
     return res.status(400).json({ errorMessage: "Campos requeridos: username, email, password" });
   }
@@ -61,8 +65,7 @@ router.post("/signup", async (req, res, next) => {
     if (await User.findOne({ username })) return res.status(400).json({ errorMessage: "Username no disponible" });
 
     const hashPassword = await bcrypt.hash(password, 12);
-
-    await User.create({ email, password: hashPassword, username, rol: "patient"});
+    await User.create({ email, password: hashPassword, username, role: "patient" });
 
     res.sendStatus(201);
   } catch (err) {
@@ -70,6 +73,7 @@ router.post("/signup", async (req, res, next) => {
   }
 });
 
+// ================== LOGIN ==================
 router.post("/login", async (req, res, next) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ errorMessage: "Todos los campos son obligatorios" });
@@ -81,7 +85,7 @@ router.post("/login", async (req, res, next) => {
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
     if (!isPasswordCorrect) return res.status(400).json({ errorMessage: "Contraseña inválida" });
 
-    const payload = { _id: user._id, username: user.username };
+    const payload = { _id: user._id, username: user.username, role: user.role };
     const authToken = jwt.sign(payload, process.env.SECRET_TOKEN, { algorithm: "HS256", expiresIn: "7d" });
 
     res.status(200).json({ authToken });
@@ -90,21 +94,23 @@ router.post("/login", async (req, res, next) => {
   }
 });
 
+// ================== VERIFY TOKEN ==================
 router.get("/verify", verifyToken, (req, res) => {
   res.json({ payload: req.payload });
 });
 
+// ================== GOOGLE AUTH ==================
 router.get("/google", passport.authenticate("google", { scope: ["profile", "email"] }));
 
 router.get(
   "/google/callback",
-  passport.authenticate("google", { failureRedirect: "/login", session: false }),
+  passport.authenticate("google", { session: false, failureRedirect: "/login" }),
   (req, res) => {
-    // Incluimos el rol en el payload
+    const user = req.user;
     const payload = {
-      _id: req.user._id,
-      username: req.user.username,
-      role: req.user.role, // <-- paciente o psicologo
+      _id: user._id,
+      name: user.username,
+      role: user.role,
     };
 
     const authToken = jwt.sign(payload, process.env.SECRET_TOKEN, {
@@ -112,18 +118,9 @@ router.get(
       expiresIn: "7d",
     });
 
-    // Redirección condicional según rol
-    if (req.user.role === "psychologist") {
-      res.redirect(`${process.env.ORIGIN}/admin-psicologos`);
-    } else {
-      res.redirect(`${process.env.ORIGIN}/booking`);
-    }
+    // Redirige a una página intermedia del frontend que se encargará de guardar el token
+    res.redirect(`${process.env.ORIGIN}/auth/callback?token=${authToken}`);
   }
 );
-
-
-
-
-
 
 module.exports = router;

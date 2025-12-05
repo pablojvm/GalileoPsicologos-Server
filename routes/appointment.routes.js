@@ -71,7 +71,7 @@ router.get("/availability", async (req, res) => {
   }
 });
 
-router.get("/my-schedule", verifyToken, isPsychologist, async (req, res) => {
+router.get("/my-schedule", verifyToken, async (req, res) => {
   try {
     const appointments = await Appointment.find({ psychologist: req.payload._id })
       .populate("patient", "username email")
@@ -83,9 +83,5 @@ router.get("/my-schedule", verifyToken, isPsychologist, async (req, res) => {
     res.status(500).json({ message: "Error interno del servidor" });
   }
 });
-
-module.exports = router;
-
-
 
 module.exports = router;
