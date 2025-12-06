@@ -1,5 +1,6 @@
 const router = require("express").Router();
 const Appointment = require("../models/Appoinment.model");
+const User = require("../models/User.model")
 const verifyToken = require("../middlewares/auth.middlewares");
 const isPsychologist = require("../middlewares/role.middleware");
 
@@ -18,7 +19,7 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // 3️⃣ Crear la nueva cita
+    // 1️⃣ Crear la nueva cita
     const appointment = await Appointment.create({
       psychologist,
       patient,
@@ -28,12 +29,61 @@ router.post("/", async (req, res) => {
       coment,
     });
 
+    // 2️⃣ Obtener datos para los correos
+    const patientData = await User.findById(patient);
+    const psychologistData = await User.findById(psychologist);
+
+    const patientEmail = patientData.email;
+    const psychologistEmail = psychologistData.email;
+    const adminEmail = "tucorreo@centro.com"; // <-- cambia esto
+
+    // 3️⃣ Configurar Nodemailer
+    const nodemailer = require("nodemailer");
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    // 4️⃣ Enviar correo al paciente
+    await transporter.sendMail({
+      from: `"Galileo Psicólogos" <${process.env.EMAIL_USER}>`,
+      to: patientEmail,
+      subject: "Tu cita ha sido reservada",
+      html: `
+        <h2>Reserva confirmada</h2>
+        <p><strong>Servicio:</strong> ${service}</p>
+        <p><strong>Fecha:</strong> ${new Date(date).toLocaleString()}</p>
+        <p><strong>Psicólogo:</strong> ${psychologistData.name}</p>
+        <p><strong>Comentario:</strong> ${coment || "Sin comentarios"}</p>
+      `,
+    });
+
+    // 5️⃣ Enviar correo al psicólogo
+    await transporter.sendMail({
+      from: `"Galileo Psicólogos" <${process.env.EMAIL_USER}>`,
+      to: psychologistEmail,
+      subject: "Nueva cita programada",
+      html: `
+        <h2>Tienes una nueva cita</h2>
+        <p><strong>Paciente:</strong> ${patientData.name}</p>
+        <p><strong>Servicio:</strong> ${service}</p>
+        <p><strong>Fecha:</strong> ${new Date(date).toLocaleString()}</p>
+      `,
+    });
+
+    // 7️⃣ Responder al front
     res.status(201).json(appointment);
+
   } catch (err) {
     console.error("Error creando cita:", err);
     res.status(500).json({ message: "Error interno del servidor" });
   }
 });
+
 
 router.get("/availability", async (req, res) => {
   try {

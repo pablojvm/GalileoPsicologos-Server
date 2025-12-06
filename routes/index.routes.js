@@ -6,6 +6,9 @@ router.use("/appointment", appointmentRouter)
 const authRouter = require(("./auth.routes"))
 router.use("/auth", authRouter)
 
+const reviewRouter = require(("./review.routes"))
+router.use("/review", reviewRouter)
+
 const emailRouter = require(("./email.routes"))
 router.use("/email", emailRouter)
 

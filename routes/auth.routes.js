@@ -119,7 +119,7 @@ router.get(
     });
 
     // Redirige a una página intermedia del frontend que se encargará de guardar el token
-    res.redirect(`${process.env.ORIGIN}/auth/callback?token=${authToken}`);
+    res.redirect(`${process.env.ORIGIN}/auth/callback#token=${authToken}`);
   }
 );
 
