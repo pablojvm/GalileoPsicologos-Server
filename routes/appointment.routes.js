@@ -6,11 +6,18 @@ const isPsychologist = require("../middlewares/role.middleware");
 
 router.post("/", async (req, res) => {
   try {
-    const { psychologist, patient, service, date, coment } = req.body;
+    const { psychologist, patient, service, date, time, coment } = req.body;
 
+    // Combinar fecha y hora para buscar conflictos
+    const [hours, minutes] = time.split(":").map(Number);
+    const appointmentDate = new Date(date);
+    appointmentDate.setHours(hours, minutes, 0, 0);
+
+    // Comprobar si ya hay cita en ese horario
     const existingAppointment = await Appointment.findOne({
       psychologist,
       date,
+      time,
     });
 
     if (existingAppointment) {
@@ -19,25 +26,24 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // 1️⃣ Crear la nueva cita
+    // Crear la nueva cita
     const appointment = await Appointment.create({
       psychologist,
       patient,
       service,
-      date,
+      date, // YYYY/MM/DD
+      time, // HH:MM
       status: "pending",
       coment,
     });
 
-    // 2️⃣ Obtener datos para los correos
     const patientData = await User.findById(patient);
     const psychologistData = await User.findById(psychologist);
 
     const patientEmail = patientData.email;
     const psychologistEmail = psychologistData.email;
-    const adminEmail = "tucorreo@centro.com"; // <-- cambia esto
+    const adminEmail = "tucorreo@centro.com"; 
 
-    // 3️⃣ Configurar Nodemailer
     const nodemailer = require("nodemailer");
 
     const transporter = nodemailer.createTransport({
@@ -48,34 +54,37 @@ router.post("/", async (req, res) => {
       },
     });
 
-    // 4️⃣ Enviar correo al paciente
+    // Enviar correo al paciente
     await transporter.sendMail({
       from: `"Galileo Psicólogos" <${process.env.EMAIL_USER}>`,
       to: patientEmail,
       subject: "Tu cita ha sido reservada",
       html: `
         <h2>Reserva confirmada</h2>
+        <p>A continuación puedes leer los detalles de la reserva.</p>
         <p><strong>Servicio:</strong> ${service}</p>
-        <p><strong>Fecha:</strong> ${new Date(date).toLocaleString()}</p>
-        <p><strong>Psicólogo:</strong> ${psychologistData.name}</p>
+        <p><strong>Fecha:</strong> ${date}</p>
+        <p><strong>Hora:</strong> ${time}</p>
+        <p><strong>Psicólogo:</strong> ${psychologistData.username}</p>
         <p><strong>Comentario:</strong> ${coment || "Sin comentarios"}</p>
       `,
     });
 
-    // 5️⃣ Enviar correo al psicólogo
+    // Enviar correo al psicólogo
     await transporter.sendMail({
       from: `"Galileo Psicólogos" <${process.env.EMAIL_USER}>`,
       to: psychologistEmail,
       subject: "Nueva cita programada",
       html: `
         <h2>Tienes una nueva cita</h2>
-        <p><strong>Paciente:</strong> ${patientData.name}</p>
+        <p>A continuación puedes leer los detalles de la reserva.</p>
+        <p><strong>Paciente:</strong> ${patientData.username}</p>
         <p><strong>Servicio:</strong> ${service}</p>
-        <p><strong>Fecha:</strong> ${new Date(date).toLocaleString()}</p>
+        <p><strong>Fecha:</strong> ${date}</p>
+        <p><strong>Hora:</strong> ${time}</p>
       `,
     });
 
-    // 7️⃣ Responder al front
     res.status(201).json(appointment);
 
   } catch (err) {
@@ -83,6 +92,7 @@ router.post("/", async (req, res) => {
     res.status(500).json({ message: "Error interno del servidor" });
   }
 });
+
 
 
 router.get("/availability", async (req, res) => {
@@ -93,26 +103,14 @@ router.get("/availability", async (req, res) => {
       return res.status(400).json({ message: "Faltan parámetros" });
     }
 
-    // Fecha inicio y fin del día
-    const start = new Date(date);
-    start.setHours(0, 0, 0, 0);
-
-    const end = new Date(date);
-    end.setHours(23, 59, 59, 999);
-
-    // Buscar las citas de ese psicólogo ese día
+    // Buscar las citas del psicólogo en esa fecha exacta
     const appointments = await Appointment.find({
       psychologist,
-      date: { $gte: start, $lte: end },
+      date, // ahora date es "YYYY/MM/DD"
     });
 
-    // Devolver solo las horas
-    const hoursTaken = appointments.map(a => {
-      const d = new Date(a.date);
-      return `${String(d.getHours()).padStart(2, "0")}:${String(
-        d.getMinutes()
-      ).padStart(2, "0")}`;
-    });
+    // Devolver solo las horas ocupadas
+    const hoursTaken = appointments.map(a => a.time); // time = "HH:MM"
 
     res.json(hoursTaken);
   } catch (err) {
