@@ -3,17 +3,19 @@ const Appointment = require("../models/Appoinment.model");
 const User = require("../models/User.model")
 const verifyToken = require("../middlewares/auth.middlewares");
 const isPsychologist = require("../middlewares/role.middleware");
+const brevo = require("../config/brevo");
+
 
 router.post("/", async (req, res) => {
   try {
     const { psychologist, patient, service, date, time, coment } = req.body;
 
-    // Combinar fecha y hora para buscar conflictos
+    // Combinar fecha y hora
     const [hours, minutes] = time.split(":").map(Number);
     const appointmentDate = new Date(date);
     appointmentDate.setHours(hours, minutes, 0, 0);
 
-    // Comprobar si ya hay cita en ese horario
+    // Comprobar si ya hay cita
     const existingAppointment = await Appointment.findOne({
       psychologist,
       date,
@@ -26,13 +28,13 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // Crear la nueva cita
+    // Crear cita
     const appointment = await Appointment.create({
       psychologist,
       patient,
       service,
-      date, // YYYY/MM/DD
-      time, // HH:MM
+      date,
+      time,
       status: "pending",
       coment,
     });
@@ -42,24 +44,13 @@ router.post("/", async (req, res) => {
 
     const patientEmail = patientData.email;
     const psychologistEmail = psychologistData.email;
-    const adminEmail = "tucorreo@centro.com"; 
 
-    const nodemailer = require("nodemailer");
-
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-
-    // Enviar correo al paciente
-    await transporter.sendMail({
-      from: `"Galileo Psicólogos" <${process.env.EMAIL_USER}>`,
-      to: patientEmail,
+    // --- EMAIL 1: al paciente ---
+    await brevo.sendTransacEmail({
+      sender: { email: process.env.BREVO_USER },
+      to: [{ email: patientEmail }],
       subject: "Tu cita ha sido reservada",
-      html: `
+      htmlContent: `
         <h2>Reserva confirmada</h2>
         <p>A continuación puedes leer los detalles de la reserva.</p>
         <p><strong>Servicio:</strong> ${service}</p>
@@ -70,12 +61,12 @@ router.post("/", async (req, res) => {
       `,
     });
 
-    // Enviar correo al psicólogo
-    await transporter.sendMail({
-      from: `"Galileo Psicólogos" <${process.env.EMAIL_USER}>`,
-      to: psychologistEmail,
+    // --- EMAIL 2: al psicólogo ---
+    await brevo.sendTransacEmail({
+      sender: { email: process.env.BREVO_USER },
+      to: [{ email: psychologistEmail }],
       subject: "Nueva cita programada",
-      html: `
+      htmlContent: `
         <h2>Tienes una nueva cita</h2>
         <p>A continuación puedes leer los detalles de la reserva.</p>
         <p><strong>Paciente:</strong> ${patientData.username}</p>
@@ -92,8 +83,6 @@ router.post("/", async (req, res) => {
     res.status(500).json({ message: "Error interno del servidor" });
   }
 });
-
-
 
 router.get("/availability", async (req, res) => {
   try {
