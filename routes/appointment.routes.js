@@ -1,21 +1,17 @@
 const router = require("express").Router();
 const Appointment = require("../models/Appoinment.model");
-const User = require("../models/User.model")
+const User = require("../models/User.model");
 const verifyToken = require("../middlewares/auth.middlewares");
-const isPsychologist = require("../middlewares/role.middleware");
 const brevo = require("../config/brevo");
-
 
 router.post("/", async (req, res) => {
   try {
     const { psychologist, patient, service, date, time, coment } = req.body;
 
-    // Combinar fecha y hora
     const [hours, minutes] = time.split(":").map(Number);
     const appointmentDate = new Date(date);
     appointmentDate.setHours(hours, minutes, 0, 0);
 
-    // Comprobar si ya hay cita
     const existingAppointment = await Appointment.findOne({
       psychologist,
       date,
@@ -28,7 +24,6 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // Crear cita
     const appointment = await Appointment.create({
       psychologist,
       patient,
@@ -45,14 +40,13 @@ router.post("/", async (req, res) => {
     const patientEmail = patientData.email;
     const psychologistEmail = psychologistData.email;
 
-    // --- EMAIL 1: al paciente ---
     await brevo.sendTransacEmail({
       sender: { email: process.env.BREVO_USER },
       to: [{ email: patientEmail }],
-      subject: "Tu cita ha sido reservada",
+      subject: "Tu solicitud de reserva ha sido enviada",
       htmlContent: `
-        <h2>Reserva confirmada</h2>
-        <p>A continuación puedes leer los detalles de la reserva.</p>
+        <h2>Reserva pendiente</h2>
+        <p>Detalles de la reserva:</p>
         <p><strong>Servicio:</strong> ${service}</p>
         <p><strong>Fecha:</strong> ${date}</p>
         <p><strong>Hora:</strong> ${time}</p>
@@ -61,14 +55,13 @@ router.post("/", async (req, res) => {
       `,
     });
 
-    // --- EMAIL 2: al psicólogo ---
     await brevo.sendTransacEmail({
       sender: { email: process.env.BREVO_USER },
       to: [{ email: psychologistEmail }],
       subject: "Nueva cita programada",
       htmlContent: `
         <h2>Tienes una nueva cita</h2>
-        <p>A continuación puedes leer los detalles de la reserva.</p>
+        <p>Detalles de la reserva:</p>
         <p><strong>Paciente:</strong> ${patientData.username}</p>
         <p><strong>Servicio:</strong> ${service}</p>
         <p><strong>Fecha:</strong> ${date}</p>
@@ -77,7 +70,6 @@ router.post("/", async (req, res) => {
     });
 
     res.status(201).json(appointment);
-
   } catch (err) {
     console.error("Error creando cita:", err);
     res.status(500).json({ message: "Error interno del servidor" });
@@ -92,14 +84,12 @@ router.get("/availability", async (req, res) => {
       return res.status(400).json({ message: "Faltan parámetros" });
     }
 
-    // Buscar las citas del psicólogo en esa fecha exacta
     const appointments = await Appointment.find({
       psychologist,
-      date, // ahora date es "YYYY/MM/DD"
+      date,
     });
 
-    // Devolver solo las horas ocupadas
-    const hoursTaken = appointments.map(a => a.time); // time = "HH:MM"
+    const hoursTaken = appointments.map(a => a.time);
 
     res.json(hoursTaken);
   } catch (err) {
@@ -118,6 +108,84 @@ router.get("/my-schedule", verifyToken, async (req, res) => {
   } catch (err) {
     console.error("Error obteniendo agenda:", err);
     res.status(500).json({ message: "Error interno del servidor" });
+  }
+});
+
+// PATCH para actualizar estado e integrar envío de emails con Brevo
+router.patch("/:id", async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  const validStatuses = ["pending", "confirmed", "cancelled"];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ message: "Estado inválido" });
+  }
+
+  try {
+    const appointment = await Appointment.findById(id);
+    if (!appointment) {
+      return res.status(404).json({ message: "Cita no encontrada" });
+    }
+
+    appointment.status = status;
+    await appointment.save();
+
+    // Obtener datos del paciente y psicólogo
+    const patientData = await User.findById(appointment.patient);
+    const psychologistData = await User.findById(appointment.psychologist);
+
+    const patientEmail = patientData.email;
+    const psychologistEmail = psychologistData.email;
+
+    const { service, date, time, coment } = appointment;
+
+    const patientSubject =
+      status === "confirmed"
+        ? "Tu cita ha sido confirmada"
+        : status === "cancelled"
+        ? "Tu cita ha sido cancelada"
+        : "Reserva pendiente";
+
+    const psychologistSubject =
+      status === "confirmed"
+        ? "Cita confirmada con tu paciente"
+        : status === "cancelled"
+        ? "Cita cancelada"
+        : "Nueva cita programada";
+
+    await brevo.sendTransacEmail({
+      sender: { email: process.env.BREVO_USER },
+      to: [{ email: patientEmail }],
+      subject: patientSubject,
+      htmlContent: `
+        <h2>${patientSubject}</h2>
+        <p>Detalles de la reserva:</p>
+        <p><strong>Servicio:</strong> ${service}</p>
+        <p><strong>Fecha:</strong> ${date}</p>
+        <p><strong>Hora:</strong> ${time}</p>
+        <p><strong>Psicólogo:</strong> ${psychologistData.username}</p>
+        <p><strong>Comentario:</strong> ${coment || "Sin comentarios"}</p>
+      `,
+    });
+
+    await brevo.sendTransacEmail({
+      sender: { email: process.env.BREVO_USER },
+      to: [{ email: psychologistEmail }],
+      subject: psychologistSubject,
+      htmlContent: `
+        <h2>${psychologistSubject}</h2>
+        <p>Detalles de la reserva:</p>
+        <p><strong>Paciente:</strong> ${patientData.username}</p>
+        <p><strong>Servicio:</strong> ${service}</p>
+        <p><strong>Fecha:</strong> ${date}</p>
+        <p><strong>Hora:</strong> ${time}</p>
+      `,
+    });
+
+    res.status(200).json(appointment);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error actualizando la cita" });
   }
 });
 
