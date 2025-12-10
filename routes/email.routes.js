@@ -1,5 +1,5 @@
 const express = require("express");
-const brevo = require("../config/brevo.js");
+const brevo = require("../config/brevo");
 const router = express.Router();
 
 router.post("/send-email", async (req, res) => {
