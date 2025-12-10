@@ -6,11 +6,15 @@ router.post("/send-email", async (req, res) => {
   const { to, subject, message } = req.body;
 
   try {
+    const formattedTo = Array.isArray(to)
+      ? to.map((email) => ({ email }))
+      : [{ email: to }];
+
     await brevo.sendTransacEmail({
-      sender: { email: process.env.BREVO_USER},
-      to: [{ email: to }],
+      sender: { email: process.env.BREVO_USER },
+      to: formattedTo,
       subject,
-      htmlContent: `<p>${message}</p>`,
+      htmlContent: message,
     });
 
     res.json({ success: true, message: "Correo enviado con Brevo API" });
@@ -19,5 +23,6 @@ router.post("/send-email", async (req, res) => {
     res.status(500).json({ success: false, message: "Error enviando email" });
   }
 });
+
 
 module.exports = router;
