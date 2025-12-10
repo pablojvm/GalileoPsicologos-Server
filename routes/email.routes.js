@@ -8,7 +8,7 @@ router.post("/send-email", async (req, res) => {
 
   try {
     await transporter.sendMail({
-      from: `"Tu App" <${process.env.EMAIL_USER}>`,
+      from: `"Tu App" <${process.env.BREVO_USER}>`,  // <- CORREGIDO
       to,
       subject,
       html: `<p>${message}</p>`,
