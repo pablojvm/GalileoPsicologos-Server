@@ -9,7 +9,6 @@ const verifyToken = require("../middlewares/auth.middlewares");
 
 const router = express.Router();
 
-// ================== GOOGLE STRATEGY ==================
 passport.use(
   new GoogleStrategy(
     {
@@ -27,7 +26,7 @@ passport.use(
             email,
             username: profile.displayName,
             password: null,
-            role: "patient", // por defecto
+            role: "patient",
           });
         }
 
@@ -45,7 +44,6 @@ passport.deserializeUser(async (id, done) => {
   done(null, user);
 });
 
-// ================== SIGNUP ==================
 router.post("/signup", async (req, res, next) => {
   const { email, password, username } = req.body;
   if (!username || !email || !password) {
@@ -73,7 +71,6 @@ router.post("/signup", async (req, res, next) => {
   }
 });
 
-// ================== LOGIN ==================
 router.post("/login", async (req, res, next) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ errorMessage: "Todos los campos son obligatorios" });
@@ -94,12 +91,10 @@ router.post("/login", async (req, res, next) => {
   }
 });
 
-// ================== VERIFY TOKEN ==================
 router.get("/verify", verifyToken, (req, res) => {
   res.json({ payload: req.payload });
 });
 
-// ================== GOOGLE AUTH ==================
 router.get("/google", passport.authenticate("google", { scope: ["profile", "email"] }));
 
 router.get(
@@ -118,7 +113,6 @@ router.get(
       expiresIn: "7d",
     });
 
-    // Redirige a una página intermedia del frontend que se encargará de guardar el token
     res.redirect(`${process.env.ORIGIN}/auth/callback#token=${authToken}`);
   }
 );
