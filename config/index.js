@@ -15,7 +15,8 @@ function config(app) {
   // ℹ️ Configures CORS to allow requests only from the specified origin
   app.use(
     cors({
-      origin: [process.env.ORIGIN]
+      origin: [process.env.ORIGIN],
+      credentials: true,
     })
   );
   

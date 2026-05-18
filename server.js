@@ -1,22 +1,8 @@
-const express = require("express");
-const cors = require("cors");
 require("dotenv").config();
 require("./db");
 
+const express = require("express");
 const app = express();
-
-app.use(cors({
-  origin: process.env.ORIGIN,
-  credentials: true,
-}));
-
-app.options("*", cors({
-  origin: process.env.ORIGIN,
-  credentials: true,
-}));
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 const config = require("./config");
 config(app);

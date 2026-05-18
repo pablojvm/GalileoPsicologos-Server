@@ -4,7 +4,7 @@ const User = require("../models/User.model");
 const verifyToken = require("../middlewares/auth.middlewares");
 const brevo = require("../config/brevo");
 
-router.post("/", async (req, res) => {
+router.post("/", verifyToken, async (req, res) => {
   try {
     const { psychologist, patient, service, date, time, coment } = req.body;
 
@@ -76,7 +76,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.get("/availability", async (req, res) => {
+router.get("/availability", verifyToken, async (req, res) => {
   try {
     const { psychologist, date } = req.query;
 
@@ -112,7 +112,7 @@ router.get("/my-schedule", verifyToken, async (req, res) => {
 });
 
 // PATCH para actualizar estado e integrar envío de emails con Brevo
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", verifyToken, async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
 

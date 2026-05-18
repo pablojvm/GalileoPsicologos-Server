@@ -104,7 +104,7 @@ router.get(
     const user = req.user;
     const payload = {
       _id: user._id,
-      name: user.username,
+      username: user.username,
       role: user.role,
     };
 
